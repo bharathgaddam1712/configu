@@ -18,6 +18,8 @@
     "noImplicitAny": true,
     "useUnknownInCatchVariables": false,
     "strictPropertyInitialization": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "exclude": ["node_modules", "build", "src/**/*.test*"]
 }
