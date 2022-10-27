@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Store, StoreQuery, StoreContents } from '@configu/ts';
 import { Entity, PrimaryColumn, ObjectIdColumn, Column, DataSource, DataSourceOptions } from 'typeorm';
 import _ from 'lodash';
+import forge from 'node-forge';
 
 // TODO: reuse Config from /ts somehow
 @Entity()
@@ -43,12 +44,10 @@ export class Config {
 }
 
 export abstract class TypeOrmStore extends Store {
-  static readonly protocol: string;
-
   readonly dataSource: DataSource;
 
-  constructor(dataSourceOptions: DataSourceOptions) {
-    super(TypeOrmStore.protocol, { supportsGlobQuery: false });
+  constructor(public protocol: string, dataSourceOptions: DataSourceOptions) {
+    super(protocol, { supportsGlobQuery: false });
 
     this.dataSource = new DataSource({
       ...dataSourceOptions,
@@ -67,6 +66,14 @@ export abstract class TypeOrmStore extends Store {
       });
   }
 
+  private hashObject = (object: Record<string, unknown>): string => {
+    const objectAsString = JSON.stringify(object);
+    const md = forge.md.md5.create();
+    md.update(objectAsString);
+    const md5HexString = md.digest().toHex();
+    return md5HexString;
+  };
+
   async initialize() {
     try {
       await this.dataSource.initialize();
@@ -74,6 +81,10 @@ export abstract class TypeOrmStore extends Store {
       // TODO: decide what to do with the error
       throw new Error(`failed to initialize ${this.constructor.name} - ${err.message}`);
     }
+  }
+
+  calcId(entity: Pick<Config, 'set' | 'schema' | 'key'>) {
+    return this.hashObject(_.pick(entity, ['set', 'schema', 'key']));
   }
 
   async get(query: StoreQuery): Promise<StoreContents> {
@@ -98,9 +109,18 @@ export abstract class TypeOrmStore extends Store {
     }
 
     const configRepository = this.dataSource.getRepository(Config);
+    const configEntities = configs.map((config) => ({
+      ...config,
+      _id: this.calcId(_.pick(config, ['set', 'schema', 'key'])),
+    }));
 
     // Upsert is supported by AuroraDataApi, Cockroach, Mysql, Postgres, and Sqlite database drivers.
-    await configRepository.delete(_.map(configs, '_id'));
-    await configRepository.upsert(configs, ['_id']);
+    const [configsToUpsert, configsToDelete] = _.partition(configEntities, 'value');
+    if (configsToDelete.length > 0) {
+      await configRepository.delete(_.map(configsToDelete, '_id'));
+    }
+    if (configsToUpsert.length > 0) {
+      await configRepository.upsert(configsToUpsert, ['_id']);
+    }
   }
 }

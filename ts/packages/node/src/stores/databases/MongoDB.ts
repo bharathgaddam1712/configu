@@ -1,16 +1,7 @@
 import 'reflect-metadata';
 import { StoreQuery, StoreContents } from '@configu/ts';
-import forge from 'node-forge';
 import _ from 'lodash';
 import { TypeOrmStore, Config } from './TypeORM';
-
-export const hashObject = (object: Record<string, unknown>): string => {
-  const objectAsString = JSON.stringify(object);
-  const md = forge.md.md5.create();
-  md.update(objectAsString);
-  const md5HexString = md.digest().toHex();
-  return md5HexString;
-};
 
 type MongoConfiguration = { host: string; database: string; port?: number; username?: string; password?: string };
 
@@ -18,7 +9,7 @@ type MongoConfiguration = { host: string; database: string; port?: number; usern
 export class MongoStore extends TypeOrmStore {
   static readonly protocol = 'mongodb'; // TODO: mongodb? mongo-db?
   constructor({ host, port = 27017, username, password, database }: MongoConfiguration) {
-    super({
+    super(MongoStore.protocol, {
       type: 'mongodb',
       authSource: 'admin',
       host,
@@ -45,10 +36,6 @@ export class MongoStore extends TypeOrmStore {
       return { $set };
     }
     return { $set, $unset };
-  }
-
-  calcId(entity: Pick<Config, 'set' | 'schema' | 'key'>) {
-    return hashObject(_.pick(entity, ['set', 'schema', 'key']));
   }
 
   async get(query: StoreQuery): Promise<StoreContents> {
