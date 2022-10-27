@@ -131,15 +131,10 @@ export class MongoStore extends Store {
       _id: this.calcId(_.pick(config, ['set', 'schema', 'key'])),
     }));
 
-    // await configRepository.updateMany(_.map(configEntities, '_id'), configEntities, { upsert: true });
-    // await configRepository.save(configEntities);
-
     const bulkOperations = configEntities.map((configEntity) => {
       return {
         updateOne: {
-          // filter: this.q('_id'), // TODO: TBD
-          // filter: { _id: '_id' }, // TODO: TBD
-          filter: {},
+          filter: { _id: configEntity._id },
           update: this.prepareUpsert(configEntity),
           upsert: true,
         },
