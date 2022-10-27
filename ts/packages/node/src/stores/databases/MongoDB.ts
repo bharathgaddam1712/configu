@@ -1,8 +1,8 @@
 import 'reflect-metadata';
-import { Store, StoreQuery, StoreContents } from '@configu/ts';
-import { Entity, PrimaryColumn, ObjectIdColumn, Column, DataSource, ObjectID } from 'typeorm';
+import { StoreQuery, StoreContents } from '@configu/ts';
 import forge from 'node-forge';
 import _ from 'lodash';
+import { TypeOrmStore, Config } from './TypeORM';
 
 export const hashObject = (object: Record<string, unknown>): string => {
   const objectAsString = JSON.stringify(object);
@@ -12,54 +12,13 @@ export const hashObject = (object: Record<string, unknown>): string => {
   return md5HexString;
 };
 
-// TODO: reuse Config from /ts somehow
-@Entity()
-class Config {
-  /**
-   * TODO: decide the following:
-   * - what should be within the config table
-   * - what should be a column
-   * - Indexing?
-   * - PrimaryColumn('text') vs ObjectIdColumn()
-   */
-
-  // @ObjectIdColumn()
-  // _id: ObjectID;
-
-  @PrimaryColumn('text')
-  _id: string;
-
-  @Column('text')
-  key: string;
-
-  @Column('text')
-  schema: string;
-
-  @Column('text')
-  set: string;
-
-  @Column('text')
-  value: string;
-
-  // // TODO: decide if relevant here
-  // @Column('timestamp')
-  // createdAt: string;
-
-  // // TODO: decide if relevant here
-  // @Column('timestamp')
-  // updatedAt: string;
-}
-
 type MongoConfiguration = { host: string; database: string; port?: number; username?: string; password?: string };
 
 // TODO: MongoStore? MongoDBStore?
-export class MongoStore extends Store {
+export class MongoStore extends TypeOrmStore {
   static readonly protocol = 'mongodb'; // TODO: mongodb? mongo-db?
-  private dataSource: DataSource;
   constructor({ host, port = 27017, username, password, database }: MongoConfiguration) {
-    super(MongoStore.protocol, { supportsGlobQuery: false });
-
-    this.dataSource = new DataSource({
+    super({
       type: 'mongodb',
       authSource: 'admin',
       host,
@@ -68,28 +27,7 @@ export class MongoStore extends Store {
       password,
       database,
       useUnifiedTopology: true,
-      synchronize: true, // TODO: relevant? - remove in prod
-      logging: true, // TODO: relevant?
-      entities: [Config],
-      subscribers: [], // TODO: relevant?
-      migrations: [], // TODO: relevant?
     });
-
-    this.dataSource
-      .initialize()
-      .then()
-      .catch((err) => {
-        console.log(err);
-      });
-  }
-
-  async initialize() {
-    try {
-      await this.dataSource.initialize();
-    } catch (err) {
-      // TODO: decide what to do with the error
-      throw new Error(`failed to initialize ${this.constructor.name} - ${err.message}`);
-    }
   }
 
   shouldUnset(value: unknown): boolean {
@@ -141,6 +79,13 @@ export class MongoStore extends Store {
     }));
 
     const bulkOperations = configEntities.map((configEntity) => {
+      if (_.isEmpty(configEntity.value)) {
+        return {
+          deleteOne: {
+            filter: { _id: configEntity._id },
+          },
+        };
+      }
       return {
         updateOne: {
           filter: { _id: configEntity._id },
