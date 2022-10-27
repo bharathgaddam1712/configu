@@ -117,7 +117,16 @@ export class MongoStore extends Store {
     if (!this.dataSource.isInitialized) {
       throw new Error(`${this.constructor.name} is not initialized`);
     }
-    return [];
+
+    const configRepository = this.dataSource.getMongoRepository(Config);
+
+    const adjustedQuery = query.map((entry) => ({
+      ...(entry.set !== '*' && { set: entry.set }),
+      ...(entry.schema !== '*' && { schema: entry.schema }),
+      ...(entry.key !== '*' && { key: entry.key }),
+    }));
+
+    return configRepository.findBy({ $or: adjustedQuery });
   }
 
   async set(configs: StoreContents): Promise<void> {
