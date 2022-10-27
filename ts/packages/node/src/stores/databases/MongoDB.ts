@@ -1,23 +1,22 @@
-import 'reflect-metadata';
 import { StoreQuery, StoreContents } from '@configu/ts';
 import _ from 'lodash';
+import { MongoConnectionOptions } from 'typeorm/driver/mongodb/MongoConnectionOptions';
 import { TypeOrmStore, Config } from './TypeORM';
 
-type MongoConfiguration = { host: string; database: string; port?: number; username?: string; password?: string };
-
-// TODO: MongoStore? MongoDBStore?
 export class MongoStore extends TypeOrmStore {
-  static readonly protocol = 'mongodb'; // TODO: mongodb? mongo-db?
-  constructor({ host, port = 27017, username, password, database }: MongoConfiguration) {
+  static readonly protocol = 'mongodb';
+  constructor({
+    port = 27017,
+    authSource = 'admin',
+    useUnifiedTopology = true,
+    ...rest
+  }: Omit<MongoConnectionOptions, 'type'>) {
     super(MongoStore.protocol, {
       type: 'mongodb',
-      authSource: 'admin',
-      host,
+      authSource,
       port,
-      username,
-      password,
-      database,
-      useUnifiedTopology: true,
+      useUnifiedTopology,
+      ...rest,
     });
   }
 
