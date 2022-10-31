@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { Store, StoreQuery, StoreContents } from '@configu/ts';
-import { Entity, PrimaryColumn, ObjectIdColumn, Column, DataSource, DataSourceOptions } from 'typeorm';
+import { Entity, PrimaryColumn, ObjectIdColumn, Column, DataSource, DataSourceOptions, Index } from 'typeorm';
 import _ from 'lodash';
 import forge from 'node-forge';
 
-// TODO: reuse Config from /ts somehow
+// TODO: perhaps it should be ConfigEntity to avoid confusion?
 @Entity()
 export class Config {
   /**
@@ -23,22 +23,23 @@ export class Config {
   _id: string;
 
   @Column('text')
-  key: string;
-
-  @Column('text')
   schema: string;
 
+  @Index('set')
   @Column('text')
   set: string;
 
   @Column('text')
+  key: string;
+
+  @Column('text')
   value: string;
 
-  // // TODO: decide if relevant here
+  // TODO: decide if relevant here
   // @Column('timestamp')
   // createdAt: string;
 
-  // // TODO: decide if relevant here
+  // TODO: decide if relevant here
   // @Column('timestamp')
   // updatedAt: string;
 }
@@ -52,18 +53,7 @@ export abstract class TypeOrmStore extends Store {
     this.dataSource = new DataSource({
       ...dataSourceOptions,
       entities: [Config],
-      synchronize: true, // TODO: relevant? - remove in prod
-      logging: true, // TODO: relevant?
-      subscribers: [], // TODO: relevant?
-      migrations: [], // TODO: relevant?
     });
-
-    this.dataSource
-      .initialize()
-      .then()
-      .catch((err) => {
-        console.log(err);
-      });
   }
 
   private hashObject = (object: Record<string, unknown>): string => {
@@ -102,7 +92,10 @@ export abstract class TypeOrmStore extends Store {
 
     return configRepository.find({ where: adjustedQuery });
   }
+}
 
+export abstract class TypeOrmStoreWithUpsert extends TypeOrmStore {
+  // * Upsert is supported by AuroraDataApi, Cockroach, Mysql, Postgres, and Sqlite database drivers.
   async set(configs: StoreContents): Promise<void> {
     if (!this.dataSource.isInitialized) {
       throw new Error(`${this.constructor.name} is not initialized`);
@@ -113,12 +106,12 @@ export abstract class TypeOrmStore extends Store {
       ...config,
       _id: this.calcId(_.pick(config, ['set', 'schema', 'key'])),
     }));
-
-    // Upsert is supported by AuroraDataApi, Cockroach, Mysql, Postgres, and Sqlite database drivers.
     const [configsToUpsert, configsToDelete] = _.partition(configEntities, 'value');
+
     if (configsToDelete.length > 0) {
       await configRepository.delete(_.map(configsToDelete, '_id'));
     }
+
     if (configsToUpsert.length > 0) {
       await configRepository.upsert(configsToUpsert, ['_id']);
     }
