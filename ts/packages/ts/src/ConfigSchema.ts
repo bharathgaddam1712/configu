@@ -172,7 +172,7 @@ export class ConfigSchema implements IConfigSchema {
           throw new Error(
             ERR(`invalid default property`, {
               location: [`ConfigSchema`, 'parse', uid, key, 'default'],
-              suggestion: `default must'nt set together with required or template properties`,
+              suggestion: `default mustn't set together with required or template properties`,
             }),
           );
         }
